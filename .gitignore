@@ -1,0 +1,12 @@
+.gazebo
+.ignition
+.ros
+.sdformat
+.bash_history
+.cache/
+.dbus/
+.rviz/
+.ssh/
+.viminfo
+.specstory
+.cursorindexingignore

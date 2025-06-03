@@ -1,0 +1,111 @@
+FROM ros:humble-ros-core-jammy
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV ROS_DISTRO=humble
+
+# ----------------------------
+# System packages
+# ----------------------------
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    gnupg2 \
+    lsb-release \
+    wget \
+    unzip \
+    git \
+    tmux \
+    python3.10 \
+    python3.10-dev \
+    python3.10-venv \
+    python3-pip \
+    python3-setuptools \
+    build-essential \
+    libboost-all-dev \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    x11-apps \
+    mesa-utils \
+    iproute2 \
+    net-tools \
+    dbus-x11 \
+    htop \
+    libvulkan1 \
+    mesa-vulkan-drivers \
+    vulkan-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use Python 3.10 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+
+# Upgrade pip and install basic Python packages
+RUN pip3 install --upgrade pip
+RUN pip3 install colcon-common-extensions vcstool pygame empy==3.3.4 transforms3d
+
+# ----------------------------
+# Install ROS 2 desktop and tools
+# ----------------------------
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
+    echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list
+
+RUN apt-get update && apt-get install -y \
+    ros-humble-desktop \
+    ros-humble-rosbridge-server \
+    ros-humble-rmw-cyclonedds-cpp \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
+
+# Init rosdep
+RUN rosdep init && rosdep update --rosdistro $ROS_DISTRO
+
+# Install derived_object_msgs
+RUN apt-get update && apt-get install -y \
+    ros-humble-derived-object-msgs \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------
+# Vulkan/CUDA Runtime Env
+# ----------------------------
+ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
+ENV VK_LAYER_PATH=/usr/share/vulkan/implicit_layer.d
+
+# ----------------------------
+# Install Isaac Sim (headless)
+# ----------------------------
+ENV OMNI_KIT_ALLOW_ROOT=1
+
+RUN pip3 install --upgrade pip
+RUN pip3 install --ignore-installed torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+RUN pip3 install --ignore-installed 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+
+# ----------------------------
+# Install IsaacLab
+# ----------------------------
+WORKDIR /
+RUN git clone https://github.com/isaac-sim/IsaacLab.git
+WORKDIR /IsaacLab
+WORKDIR /IsaacLab
+
+# Fix `tabs`, and set python_exe fallback for docker
+RUN sed -i '/tabs 4/d' isaaclab.sh \
+ && sed -i 's|local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh|local python_exe=$(which python3)|' isaaclab.sh \
+ && chmod +x isaaclab.sh \
+ && ./isaaclab.sh --install
+
+
+
+# ----------------------------
+# Entrypoint setup
+# ----------------------------
+COPY .bashrc.docker.ros2 /docker_entrypoint/.bashrc
+COPY docker_entrypoint.sh /docker_entrypoint.sh
+RUN chmod +x /docker_entrypoint.sh
+RUN chmod 644 /docker_entrypoint/.bashrc
+
+ENTRYPOINT ["/docker_entrypoint.sh"]
+CMD ["bash"]
+

@@ -1,0 +1,17 @@
+if [ -z "$ROS_DISTRO" ] && [ -f /opt/ros/noetic/setup.bash ]; then
+    export ROS_DISTRO=noetic
+elif [ -z "$ROS_DISTRO" ] && [ -f /opt/ros/humble/setup.bash ]; then
+    export ROS_DISTRO=humble
+fi
+
+# Only source docker-specific bashrc if inside container
+if grep -q docker /proc/1/cgroup 2>/dev/null; then
+    case "$ROS_DISTRO" in
+        noetic)
+            [ -f ~/.bashrc.docker.ros1 ] && source ~/.bashrc.docker.ros1
+            ;;
+        humble|foxy|iron|rolling)
+            [ -f ~/.bashrc.docker.ros2 ] && source ~/.bashrc.docker.ros2
+            ;;
+    esac
+fi
